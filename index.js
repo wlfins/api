@@ -76,7 +76,7 @@ app.get('/metadata/:tokenId', async (req, res) => {
         const API_URL = process.env.API_URL || `http://localhost:${port}`;
 
         res.json({
-            name: metadata.name,
+            name: metadata.name + '.wlfi',
             description: metadata.description || "A domain on the WLFI Name Service.",
             image: metadata.avatar || `${API_URL}/image/${tokenId}`,
             external_url: `https://www.wlfins.domains/`,
