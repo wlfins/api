@@ -12,7 +12,7 @@ app.get('/image/:tokenId', async (req, res) => {
     const { tokenId } = req.params;
     try {
         const db = await getDB();
-        const metadata = await db.collection('domains').findOne({ tokenId: tokenId });
+        const metadata = await db.collection('domains').findOne({ tokenId: parseInt(tokenId) });
 
         if (!metadata || !metadata.name) {
             return res.status(404).send('Not Found');
@@ -44,7 +44,7 @@ app.get('/metadata/:tokenId', async (req, res) => {
 
     try {
         const db = await getDB();
-        const metadata = await db.collection('domains').findOne({ tokenId: tokenId });
+        const metadata = await db.collection('domains').findOne({ tokenId: parseInt(tokenId) });
 
         if (!metadata) {
             return res.status(404).json({ error: "Metadata not found for this token" });
