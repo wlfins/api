@@ -7,7 +7,38 @@ const port = process.env.PORT || 3001;
 
 app.use(cors());
 
-// Endpoint to get metadata for a specific token ID
+// --- Dynamic SVG Image Generation ---
+app.get('/image/:tokenId', async (req, res) => {
+    const { tokenId } = req.params;
+    try {
+        const db = await getDB();
+        const metadata = await db.collection('domains').findOne({ tokenId: tokenId });
+
+        if (!metadata || !metadata.name) {
+            return res.status(404).send('Not Found');
+        }
+
+        const domainName = metadata.name + ".wlfi";
+        const fontSize = Math.max(20, 70 - domainName.length * 2.5);
+
+        const svg = `
+            <svg width="500" height="500" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100%" height="100%" fill="#1A1A1A" />
+                <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#E6C278" font-size="${fontSize}px" font-family="Arial, sans-serif">
+                    ${domainName}
+                </text>
+            </svg>
+        `;
+
+        res.setHeader('Content-Type', 'image/svg+xml');
+        res.send(svg);
+    } catch (err) {
+        console.error("Error generating SVG:", err);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+// --- Metadata Endpoint ---
 app.get('/metadata/:tokenId', async (req, res) => {
     const { tokenId } = req.params;
 
@@ -24,6 +55,11 @@ app.get('/metadata/:tokenId', async (req, res) => {
                 trait_type: "Expires",
                 display_type: "date",
                 value: metadata.expiry
+            },
+            {
+                trait_type: "Length",
+                display_type: "number",
+                value: metadata.name.length
             }
         ];
 
@@ -34,11 +70,15 @@ app.get('/metadata/:tokenId', async (req, res) => {
             });
         }
 
+        // The API_URL should be your Vercel deployment URL
+        const API_URL = process.env.API_URL || `http://localhost:${port}`;
+
         res.json({
             name: metadata.name,
             description: metadata.description || "A domain on the WLFI Name Service.",
-            image: metadata.avatar || `https://www.wlfins.domains/WLFINS_Logo2.png`,
+            image: metadata.avatar || `${API_URL}/image/${tokenId}`,
             external_url: `https://www.wlfins.domains/`,
+            background_color: "1A1A1A",
             attributes: attributes
         });
     } catch (err) {
