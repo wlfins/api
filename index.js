@@ -13,7 +13,7 @@ app.get('/metadata/:tokenId', async (req, res) => {
 
     try {
         const db = await getDB();
-        const metadata = await db.collection('domains').findOne({ tokenId: parseInt(tokenId) });
+        const metadata = await db.collection('domains').findOne({ tokenId: tokenId });
 
         if (!metadata) {
             return res.status(404).json({ error: "Metadata not found for this token" });
