@@ -37,8 +37,8 @@ app.get('/metadata/:tokenId', async (req, res) => {
         res.json({
             name: metadata.name,
             description: metadata.description || "A domain on the WLFI Name Service.",
-            image: metadata.avatar || `https://your-api-url.com/default-logo.png`, // Replace with a real URL later
-            external_url: `https://your-wlfi-ns-website.com/domains/${metadata.name}`,
+            image: metadata.avatar || `https://www.wlfins.domains/WLFINS_Logo2.png`,
+            external_url: `https://www.wlfins.domains/`,
             attributes: attributes
         });
     } catch (err) {
