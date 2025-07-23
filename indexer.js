@@ -1,12 +1,12 @@
 require('dotenv').config();
 const { ethers } = require("ethers");
-const fs = require('fs');
-const path = require('path');
+const { getDB } = require('./mongo');
 
 // --- Configuration ---
 const RPC_URL = process.env.MAINNET_RPC_URL;
 const REGISTRAR_ADDR = process.env.REGISTRAR_ADDR;
 const RESOLVER_ADDR = process.env.RESOLVER_ADDR;
+const DEPLOYMENT_BLOCK = parseInt(process.env.DEPLOYMENT_BLOCK) || 0; // Add the block number when the Registrar was deployed
 
 const REGISTRAR_ABI = [
     "event DomainRegistered(string name, address owner, uint256 expires)",
@@ -16,8 +16,6 @@ const REGISTRAR_ABI = [
 const RESOLVER_ABI = [
     "event TextChanged(bytes32 indexed node, string indexed indexedKey, string key, string value)"
 ];
-
-const dbPath = path.join(__dirname, 'db.json');
 
 // --- Main Logic ---
 async function main() {
@@ -41,31 +39,45 @@ async function main() {
     const registrar = new ethers.Contract(REGISTRAR_ADDR, REGISTRAR_ABI, provider);
     const resolver = new ethers.Contract(RESOLVER_ADDR, RESOLVER_ABI, provider);
 
-    console.log("Attaching event listeners...");
+    // --- Historical Event Processing ---
+    console.log("Processing historical DomainRegistered events...");
+    const registeredFilter = registrar.filters.DomainRegistered();
+    const pastRegisteredEvents = await registrar.queryFilter(registeredFilter, DEPLOYMENT_BLOCK, 'latest');
+
+    for (const event of pastRegisteredEvents) {
+        const [name, owner, expires] = event.args;
+        console.log(`[HISTORICAL] Found DomainRegistered: ${name}`);
+        const tokenId = ethers.namehash(name);
+        await updateDatabase(tokenId, { name, owner, expiry: expires.toString() }, false); // Don't log every historical update
+    }
+    console.log(`Finished processing ${pastRegisteredEvents.length} historical registration events.`);
+
+    // --- Live Event Listeners ---
+    console.log("Attaching live event listeners...");
 
     registrar.on("DomainRegistered", async (name, owner, expires) => {
         try {
-            console.log(`[+] New Domain Registered: ${name}`);
+            console.log(`[LIVE] New Domain Registered: ${name}`);
             const tokenId = ethers.namehash(name);
-            updateDatabase(tokenId, { name, owner, expiry: expires.toString() });
+            await updateDatabase(tokenId, { name, owner, expiry: expires.toString() });
         } catch (error) {
-            console.error("Error processing DomainRegistered event:", error);
+            console.error("Error processing live DomainRegistered event:", error);
         }
     });
 
     registrar.on("DomainRenewed", async (name, owner, expires) => {
         try {
-            console.log(`[+] Domain Renewed: ${name}`);
+            console.log(`[LIVE] Domain Renewed: ${name}`);
             const tokenId = ethers.namehash(name);
-            updateDatabase(tokenId, { expiry: expires.toString() });
+            await updateDatabase(tokenId, { expiry: expires.toString() });
         } catch (error) {
-            console.error("Error processing DomainRenewed event:", error);
+            console.error("Error processing live DomainRenewed event:", error);
         }
     });
 
     resolver.on("TextChanged", async (node, indexedKey, key, value) => {
         try {
-            console.log(`[+] Text Record Changed for node ${node}`);
+            console.log(`[LIVE] Text Record Changed for node ${node}`);
             const tokenId = node; // In our system, the node is the tokenId
             const keyMap = {
                 "description": "description",
@@ -74,38 +86,28 @@ async function main() {
             };
             const dbKey = keyMap[key];
             if (dbKey) {
-                updateDatabase(tokenId, { [dbKey]: value });
+                await updateDatabase(tokenId, { [dbKey]: value });
             }
         } catch (error) {
-            console.error("Error processing TextChanged event:", error);
+            console.error("Error processing live TextChanged event:", error);
         }
     });
 
-    console.log("Listening for events...");
+    console.log("Listening for live events...");
 }
 
 // --- Database Helper ---
-function updateDatabase(tokenId, newData) {
-    let db = {};
+async function updateDatabase(tokenId, newData, log = true) {
     try {
-        // Read synchronously to prevent race conditions from multiple events firing at once.
-        const data = fs.readFileSync(dbPath, 'utf8');
-        db = JSON.parse(data);
-    } catch (err) {
-        if (err.code !== 'ENOENT') {
-            console.error("Error reading or parsing db.json, starting fresh.", err);
+        const db = await getDB();
+        const result = await db.collection('domains').updateOne(
+            { tokenId: tokenId },
+            { $set: newData },
+            { upsert: true }
+        );
+        if (log) {
+            console.log(`Database updated for token ID: ${tokenId}. Matched: ${result.matchedCount}, Modified: ${result.modifiedCount}, Upserted: ${result.upsertedCount}`);
         }
-        // If file doesn't exist or is corrupt, we start with an empty object.
-        db = {};
-    }
-
-    // Merge new data with existing data
-    db[tokenId] = { ...(db[tokenId] || {}), ...newData };
-
-    try {
-        // Write synchronously to prevent race conditions.
-        fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf8');
-        console.log(`Database updated for token ID: ${tokenId}`);
     } catch (err) {
         console.error("Error writing to database:", err);
     }
