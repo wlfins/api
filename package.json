@@ -1,0 +1,16 @@
+{
+  "name": "wlfi-ns-api",
+  "version": "1.0.0",
+  "description": "Off-chain metadata API and indexer for the WLFI Name Service.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "index": "node indexer.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.0",
+    "ethers": "^6.13.1",
+    "express": "^4.19.2"
+  }
+}
