@@ -41,16 +41,27 @@ async function main() {
 
     // --- Historical Event Processing ---
     console.log("Processing historical DomainRegistered events...");
-    const registeredFilter = registrar.filters.DomainRegistered();
-    const pastRegisteredEvents = await registrar.queryFilter(registeredFilter, DEPLOYMENT_BLOCK, 'latest');
+    const BLOCK_CHUNK_SIZE = 1000; // Process events in chunks of 1,000 blocks (RPC limit)
+    const currentBlock = await provider.getBlockNumber();
+    let processedEventsCount = 0;
 
-    for (const event of pastRegisteredEvents) {
-        const [name, owner, expires] = event.args;
-        console.log(`[HISTORICAL] Found DomainRegistered: ${name}`);
-        const tokenId = ethers.namehash(name);
-        await updateDatabase(tokenId, { name, owner, expiry: expires.toString() }, false); // Don't log every historical update
+    for (let i = DEPLOYMENT_BLOCK; i <= currentBlock; i += BLOCK_CHUNK_SIZE) {
+        const fromBlock = i;
+        const toBlock = Math.min(i + BLOCK_CHUNK_SIZE - 1, currentBlock);
+        console.log(`Querying blocks ${fromBlock} to ${toBlock} for DomainRegistered events...`);
+
+        const registeredFilter = registrar.filters.DomainRegistered();
+        const pastRegisteredEvents = await registrar.queryFilter(registeredFilter, fromBlock, toBlock);
+
+        for (const event of pastRegisteredEvents) {
+            const [name, owner, expires] = event.args;
+            console.log(`[HISTORICAL] Found DomainRegistered: ${name} at block ${event.blockNumber}`);
+            const tokenId = ethers.namehash(name);
+            await updateDatabase(tokenId, { name, owner, expiry: expires.toString() }, false);
+            processedEventsCount++;
+        }
     }
-    console.log(`Finished processing ${pastRegisteredEvents.length} historical registration events.`);
+    console.log(`Finished processing ${processedEventsCount} historical registration events.`);
 
     // --- Live Event Listeners ---
     console.log("Attaching live event listeners...");
