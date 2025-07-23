@@ -56,7 +56,7 @@ app.get('/metadata/:tokenId', async (req, res) => {
             {
                 trait_type: "Expires",
                 display_type: "date",
-                value: metadata.expiry
+                value: parseInt(metadata.expiry, 10)
             },
             {
                 trait_type: "Length",
