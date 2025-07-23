@@ -56,7 +56,8 @@ async function main() {
         for (const event of pastRegisteredEvents) {
             const [name, owner, expires] = event.args;
             console.log(`[HISTORICAL] Found DomainRegistered: ${name} at block ${event.blockNumber}`);
-            const tokenId = ethers.namehash(name);
+            const hexTokenId = ethers.namehash(name);
+            const tokenId = BigInt(hexTokenId).toString();
             await updateDatabase(tokenId, { name, owner, expiry: expires.toString() }, false);
             processedEventsCount++;
         }
@@ -69,7 +70,8 @@ async function main() {
     registrar.on("DomainRegistered", async (name, owner, expires) => {
         try {
             console.log(`[LIVE] New Domain Registered: ${name}`);
-            const tokenId = ethers.namehash(name);
+            const hexTokenId = ethers.namehash(name);
+            const tokenId = BigInt(hexTokenId).toString();
             await updateDatabase(tokenId, { name, owner, expiry: expires.toString() });
         } catch (error) {
             console.error("Error processing live DomainRegistered event:", error);
@@ -79,7 +81,8 @@ async function main() {
     registrar.on("DomainRenewed", async (name, owner, expires) => {
         try {
             console.log(`[LIVE] Domain Renewed: ${name}`);
-            const tokenId = ethers.namehash(name);
+            const hexTokenId = ethers.namehash(name);
+            const tokenId = BigInt(hexTokenId).toString();
             await updateDatabase(tokenId, { expiry: expires.toString() });
         } catch (error) {
             console.error("Error processing live DomainRenewed event:", error);
@@ -89,7 +92,7 @@ async function main() {
     resolver.on("TextChanged", async (node, indexedKey, key, value) => {
         try {
             console.log(`[LIVE] Text Record Changed for node ${node}`);
-            const tokenId = node; // In our system, the node is the tokenId
+            const tokenId = BigInt(node).toString(); // In our system, the node is the hex tokenId
             const keyMap = {
                 "description": "description",
                 "avatar": "avatar",
