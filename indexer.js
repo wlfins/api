@@ -61,6 +61,10 @@ async function main() {
         const pastTransferEvents = await wlfirRegistry.queryFilter(transferFilter, fromBlock, toBlock);
 
         for (const event of pastTransferEvents) {
+            if (!event.args) {
+                console.error("Skipping malformed historical Transfer event: event.args is undefined.", event);
+                continue;
+            }
             const [from, to, tokenId] = event.args;
             console.log(`[HISTORICAL] Found Transfer: ${tokenId} to ${to} at block ${event.blockNumber}`);
             await updateDatabase(tokenId.toString(), { owner: to }, false);
@@ -72,7 +76,12 @@ async function main() {
     // --- Live Event Listeners ---
     console.log("Attaching live event listeners...");
 
-    wlfirRegistry.on("Transfer", async (from, to, tokenId) => {
+    wlfirRegistry.on("Transfer", async (...args) => {
+        const [from, to, tokenId] = args;
+        if (!from || !to || !tokenId) {
+            console.error("Skipping malformed live Transfer event: args are undefined.", args);
+            return;
+        }
         try {
             console.log(`[LIVE] Transfer: ${tokenId} from ${from} to ${to}`);
             await updateDatabase(tokenId.toString(), { owner: to });
