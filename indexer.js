@@ -6,15 +6,21 @@ const { getDB } = require('./mongo');
 const RPC_URL = process.env.MAINNET_RPC_URL;
 const REGISTRAR_ADDR = process.env.REGISTRAR_ADDR;
 const RESOLVER_ADDR = process.env.RESOLVER_ADDR;
-const DEPLOYMENT_BLOCK = parseInt(process.env.DEPLOYMENT_BLOCK) || 0; // Add the block number when the Registrar was deployed
+const WLFIREGISTRY_ADDR = process.env.WLFIREGISTRY_ADDR;
+const DEPLOYMENT_BLOCK = parseInt(process.env.DEPLOYMENT_BLOCK) || 0;
 
 const REGISTRAR_ABI = [
-    "event DomainRegistered(string name, address owner, uint256 expires)",
     "event DomainRenewed(string name, address owner, uint256 expires)"
 ];
 
 const RESOLVER_ABI = [
     "event TextChanged(bytes32 indexed node, string indexed indexedKey, string key, string value)"
+];
+
+const WLFIREGISTRY_ABI = [
+    "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",
+    "event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId)",
+    "event ApprovalForAll(address indexed owner, address indexed operator, bool approved)"
 ];
 
 // --- Main Logic ---
@@ -38,9 +44,10 @@ async function main() {
 
     const registrar = new ethers.Contract(REGISTRAR_ADDR, REGISTRAR_ABI, provider);
     const resolver = new ethers.Contract(RESOLVER_ADDR, RESOLVER_ABI, provider);
+    const wlfirRegistry = new ethers.Contract(WLFIREGISTRY_ADDR, WLFIREGISTRY_ABI, provider);
 
     // --- Historical Event Processing ---
-    console.log("Processing historical DomainRegistered events...");
+    console.log("Processing historical events...");
     const BLOCK_CHUNK_SIZE = 1000; // Process events in chunks of 1,000 blocks (RPC limit)
     const currentBlock = await provider.getBlockNumber();
     let processedEventsCount = 0;
@@ -48,33 +55,29 @@ async function main() {
     for (let i = DEPLOYMENT_BLOCK; i <= currentBlock; i += BLOCK_CHUNK_SIZE) {
         const fromBlock = i;
         const toBlock = Math.min(i + BLOCK_CHUNK_SIZE - 1, currentBlock);
-        console.log(`Querying blocks ${fromBlock} to ${toBlock} for DomainRegistered events...`);
+        console.log(`Querying blocks ${fromBlock} to ${toBlock} for events...`);
 
-        const registeredFilter = registrar.filters.DomainRegistered();
-        const pastRegisteredEvents = await registrar.queryFilter(registeredFilter, fromBlock, toBlock);
+        const transferFilter = wlfirRegistry.filters.Transfer();
+        const pastTransferEvents = await wlfirRegistry.queryFilter(transferFilter, fromBlock, toBlock);
 
-        for (const event of pastRegisteredEvents) {
-            const [name, owner, expires] = event.args;
-            console.log(`[HISTORICAL] Found DomainRegistered: ${name} at block ${event.blockNumber}`);
-            const hexTokenId = ethers.namehash(name);
-            const tokenId = BigInt(hexTokenId).toString();
-            await updateDatabase(tokenId, { name, owner, expiry: expires.toString() }, false);
+        for (const event of pastTransferEvents) {
+            const [from, to, tokenId] = event.args;
+            console.log(`[HISTORICAL] Found Transfer: ${tokenId} to ${to} at block ${event.blockNumber}`);
+            await updateDatabase(tokenId.toString(), { owner: to }, false);
             processedEventsCount++;
         }
     }
-    console.log(`Finished processing ${processedEventsCount} historical registration events.`);
+    console.log(`Finished processing ${processedEventsCount} historical transfer events.`);
 
     // --- Live Event Listeners ---
     console.log("Attaching live event listeners...");
 
-    registrar.on("DomainRegistered", async (name, owner, expires) => {
+    wlfirRegistry.on("Transfer", async (from, to, tokenId) => {
         try {
-            console.log(`[LIVE] New Domain Registered: ${name}`);
-            const hexTokenId = ethers.namehash(name);
-            const tokenId = BigInt(hexTokenId).toString();
-            await updateDatabase(tokenId, { name, owner, expiry: expires.toString() });
+            console.log(`[LIVE] Transfer: ${tokenId} from ${from} to ${to}`);
+            await updateDatabase(tokenId.toString(), { owner: to });
         } catch (error) {
-            console.error("Error processing live DomainRegistered event:", error);
+            console.error("Error processing live Transfer event:", error);
         }
     });
 
