@@ -1,7 +1,7 @@
 
 require('dotenv').config();
 const { ethers } = require("ethers");
-const { connectToServer, getDB } = require('../mongo');
+const { connectToServer, getDB } = require('./mongo');
 
 // --- Configuration ---
 const RPC_URL = process.env.MAINNET_RPC_URL;
