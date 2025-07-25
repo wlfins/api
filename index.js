@@ -2,6 +2,8 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
+const sharp = require('sharp');
+const fetch = require('node-fetch');
 const { connectToServer, getDB } = require('./mongo');
 
 const app = express();
@@ -26,7 +28,7 @@ app.get('/image/:tokenId', async (req, res) => {
         const svg = `
             <svg width="500" height="500" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
                 <rect width="100%" height="100%" fill="#1A1A1A" />
-                <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#E6C278" font-size="${fontSize}px" font-family="Arial, sans-serif">
+                <text x="95%" y="50%" dominant-baseline="middle" text-anchor="end" fill="#E6C278" font-size="${fontSize}px" font-family="Arial, sans-serif">
                     ${domainName}
                 </text>
             </svg>
@@ -39,6 +41,78 @@ app.get('/image/:tokenId', async (req, res) => {
         res.status(500).send('Internal Server Error');
     }
 });
+
+// --- Composite Image Generation ---
+app.get('/composite-image/:tokenId', async (req, res) => {
+    const { tokenId } = req.params;
+    console.log(`[COMPOSITE] Received request for tokenId: ${tokenId}`);
+
+    try {
+        const db = getDB();
+        const metadata = await db.collection('domains').findOne({ tokenId: tokenId });
+
+        if (!metadata || !metadata.name) {
+            console.log(`[COMPOSITE] Metadata not found for tokenId: ${tokenId}`);
+            return res.status(404).send('Not Found');
+        }
+        console.log(`[COMPOSITE] Found metadata:`, metadata);
+
+        // 1. Fetch the base avatar image
+        let baseImageBuffer;
+        if (metadata.avatar) {
+            console.log(`[COMPOSITE] Fetching avatar from: ${metadata.avatar}`);
+            const response = await fetch(metadata.avatar);
+            if (!response.ok) {
+                console.error(`[COMPOSITE] Failed to fetch avatar image: ${response.statusText}`);
+                throw new Error(`Failed to fetch avatar image: ${response.statusText}`);
+            }
+            baseImageBuffer = await response.buffer();
+            console.log(`[COMPOSITE] Successfully fetched avatar image.`);
+        } else {
+            console.log(`[COMPOSITE] No avatar found, using fallback background.`);
+            // Fallback to a plain background if no avatar is set
+            baseImageBuffer = await sharp({
+                create: {
+                    width: 500,
+                    height: 500,
+                    channels: 4,
+                    background: { r: 26, g: 26, b: 26, alpha: 1 }
+                }
+            }).png().toBuffer();
+        }
+
+        // 2. Generate the SVG overlay
+        const domainName = metadata.name + ".wlfi";
+        const fontSize = Math.max(20, 70 - domainName.length * 2.5);
+        const svgOverlay = `
+            <svg width="500" height="500" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+                <text x="95%" y="50%" dominant-baseline="middle" text-anchor="end" fill="#E6C278" font-size="${fontSize}px" font-family="Arial, sans-serif">
+                    ${domainName}
+                </text>
+            </svg>
+        `;
+        const svgBuffer = Buffer.from(svgOverlay);
+        console.log(`[COMPOSITE] Generated SVG overlay for domain: ${domainName}`);
+
+        // 3. Composite the images
+        console.log(`[COMPOSITE] Starting image composition...`);
+        const compositeImage = await sharp(baseImageBuffer)
+            .resize(500, 500)
+            .composite([{ input: svgBuffer }])
+            .png()
+            .toBuffer();
+        console.log(`[COMPOSITE] Image composition successful.`);
+
+        // 4. Send the final image
+        res.setHeader('Content-Type', 'image/png');
+        res.send(compositeImage);
+
+    } catch (err) {
+        console.error("Error generating composite image:", err);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
 
 // --- Metadata Endpoint ---
 app.get('/metadata/:tokenId', async (req, res) => {
@@ -94,7 +168,7 @@ app.get('/metadata/:tokenId', async (req, res) => {
         res.json({
             name: metadata.name + '.wlfi',
             description: metadata.description || "A domain on the WLFI Name Service.",
-            image: metadata.avatar || `${API_URL}/image/${tokenId}`,
+            image: `${API_URL}/composite-image/${tokenId}`,
             external_url: `https://www.wlfins.domains/`,
             background_color: "1A1A1A",
             attributes: attributes
