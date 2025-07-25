@@ -5,12 +5,13 @@ const cors = require('cors');
 const sharp = require('sharp');
 const fetch = require('node-fetch');
 const TextToSVG = require('text-to-svg');
+const path = require('path');
 const { connectToServer, getDB } = require('./mongo');
 
 const app = express();
 const port = process.env.PORT || 3001;
 
-const textToSVG = TextToSVG.loadSync('./fonts/NotoSans-Regular.woff2');
+const textToSVG = TextToSVG.loadSync(path.join(__dirname, 'fonts/NotoSans-Regular.woff2'));
 
 app.use(cors());
 
