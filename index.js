@@ -11,7 +11,7 @@ const { connectToServer, getDB } = require('./mongo');
 const app = express();
 const port = process.env.PORT || 3001;
 
-const textToSVG = TextToSVG.loadSync(path.join(__dirname, 'fonts/NotoSans-Regular.woff2'));
+const textToSVG = TextToSVG.loadSync(path.join(__dirname, 'public', 'fonts', 'NotoSans-Regular.woff2'));
 
 app.use(cors());
 
