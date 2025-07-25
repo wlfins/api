@@ -12,13 +12,17 @@
   ],
   "routes": [
     {
+      "src": "/api/indexer",
+      "dest": "indexer.js"
+    },
+    {
       "src": "/(.*)",
       "dest": "index.js"
     }
   ],
   "crons": [
     {
-      "path": "indexer.js",
+      "path": "/api/indexer",
       "schedule": "* * * * *"
     }
   ]
