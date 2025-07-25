@@ -54,6 +54,13 @@ async function getAndSetLastProcessedBlock(db, newBlockNumber = null) {
 module.exports = async (req, res) => {
     console.log("Indexer function invoked.");
 
+    // --- Security Check ---
+    const authHeader = req.headers['authorization'];
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+        console.log("Unauthorized access attempt.");
+        return res.status(401).send('Unauthorized');
+    }
+
     try {
         await connectToServer();
         const db = getDB();
