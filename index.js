@@ -23,12 +23,18 @@ app.get('/image/:tokenId', async (req, res) => {
         }
 
         const domainName = metadata.name + ".wlfi";
-        const fontSize = Math.max(20, 70 - domainName.length * 2.5);
+        const fontSize = Math.max(30, 90 - domainName.length * 3);
 
         const svg = `
             <svg width="500" height="500" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+                <style>
+                    @font-face {
+                        font-family: 'Noto Sans';
+                        src: url('https://fonts.gstatic.com/s/notosans/v27/o-0IIpQlx3QUlC5A4PNr5TRA.woff2') format('woff2');
+                    }
+                </style>
                 <rect width="100%" height="100%" fill="#1A1A1A" />
-                <text x="95%" y="50%" dominant-baseline="middle" text-anchor="end" fill="#E6C278" font-size="${fontSize}px" font-family="Arial, sans-serif">
+                <text x="50%" y="90%" dominant-baseline="middle" text-anchor="middle" fill="#E6C278" font-size="${fontSize}px" font-family="'Noto Sans', Arial, sans-serif">
                     ${domainName}
                 </text>
             </svg>
@@ -83,10 +89,16 @@ app.get('/composite-image/:tokenId', async (req, res) => {
 
         // 2. Generate the SVG overlay
         const domainName = metadata.name + ".wlfi";
-        const fontSize = Math.max(20, 70 - domainName.length * 2.5);
+        const fontSize = Math.max(30, 90 - domainName.length * 3);
         const svgOverlay = `
             <svg width="500" height="500" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
-                <text x="95%" y="50%" dominant-baseline="middle" text-anchor="end" fill="#E6C278" font-size="${fontSize}px" font-family="Arial, sans-serif">
+                <style>
+                    @font-face {
+                        font-family: 'Noto Sans';
+                        src: url('https://fonts.gstatic.com/s/notosans/v27/o-0IIpQlx3QUlC5A4PNr5TRA.woff2') format('woff2');
+                    }
+                </style>
+                <text x="50%" y="90%" dominant-baseline="middle" text-anchor="middle" fill="#E6C278" font-size="${fontSize}px" font-family="'Noto Sans', Arial, sans-serif">
                     ${domainName}
                 </text>
             </svg>
