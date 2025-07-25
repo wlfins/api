@@ -29,7 +29,7 @@ app.get('/image/:tokenId', async (req, res) => {
         const domainName = metadata.name + ".wlfi";
         const fontSize = Math.max(30, 90 - domainName.length * 3);
 
-        const attributes = {fill: '#E6C278'};
+        const attributes = {fill: '#FFD700'};
         const options = {x: 250, y: 450, fontSize: fontSize, anchor: 'center middle', attributes: attributes};
 
         const path = textToSVG.getD(domainName, options);
@@ -92,7 +92,7 @@ app.get('/composite-image/:tokenId', async (req, res) => {
         const domainName = metadata.name + ".wlfi";
         const fontSize = Math.max(30, 90 - domainName.length * 3);
 
-        const attributes = {fill: '#E6C278'};
+        const attributes = {fill: '#FFD700'};
         const options = {x: 250, y: 450, fontSize: fontSize, anchor: 'center middle', attributes: attributes};
 
         const path = textToSVG.getD(domainName, options);
