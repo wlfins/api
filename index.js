@@ -165,10 +165,15 @@ app.get('/metadata/:tokenId', async (req, res) => {
         // The API_URL should be your Vercel deployment URL
         const API_URL = process.env.API_URL || `http://localhost:${port}`;
 
+        // Conditionally set the image URL
+        const imageUrl = metadata.avatar 
+            ? `${API_URL}/composite-image/${tokenId}` 
+            : `${API_URL}/image/${tokenId}`;
+
         res.json({
             name: metadata.name + '.wlfi',
             description: metadata.description || "A domain on the WLFI Name Service.",
-            image: `${API_URL}/composite-image/${tokenId}`,
+            image: imageUrl,
             external_url: `https://www.wlfins.domains/`,
             background_color: "1A1A1A",
             attributes: attributes
