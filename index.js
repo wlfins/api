@@ -32,12 +32,21 @@ app.get('/image/:tokenId', async (req, res) => {
         const attributes = {fill: '#FFD700'};
         const options = {x: 250, y: 450, fontSize: fontSize, anchor: 'center middle', attributes: attributes};
 
-        const path = textToSVG.getD(domainName, options);
+        const textPath = textToSVG.getD(domainName, options);
+
+        const baseImageResponse = await fetch('https://www.wlfins.domains/WLFINS_Logo2.png');
+        if (!baseImageResponse.ok) {
+            throw new Error('Failed to fetch base image');
+        }
+        const imageBuffer = await baseImageResponse.buffer();
+        const base64Image = imageBuffer.toString('base64');
+        const imageMime = baseImageResponse.headers.get('content-type');
+        const dataUri = `data:${imageMime};base64,${base64Image}`;
 
         const svg = `
-            <svg width="500" height="500" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
-                <rect width="100%" height="100%" fill="#1A1A1A" />
-                <path fill="#FFD700" d="${path}"/>
+            <svg width="500" height="500" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+                <image href="${dataUri}" x="0" y="0" height="500" width="500"/>
+                <path fill="#FFD700" d="${textPath}"/>
             </svg>
         `;
 
