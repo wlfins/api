@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
-const { getDB } = require('./mongo');
+const { connectToServer, getDB } = require('./mongo');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -13,7 +13,7 @@ app.use(cors());
 app.get('/image/:tokenId', async (req, res) => {
     const { tokenId } = req.params;
     try {
-        const db = await getDB();
+        const db = getDB();
         const metadata = await db.collection('domains').findOne({ tokenId: tokenId });
 
         if (!metadata || !metadata.name) {
@@ -45,11 +45,11 @@ app.get('/metadata/:tokenId', async (req, res) => {
     const { tokenId } = req.params;
 
     try {
-        const db = await getDB();
+        const db = getDB();
         const metadata = await db.collection('domains').findOne({ tokenId: tokenId });
 
-        if (!metadata) {
-            return res.status(404).json({ error: "Metadata not found for this token" });
+        if (!metadata || !metadata.name) {
+            return res.status(404).json({ error: "Metadata not found or is incomplete for this token" });
         }
 
         const attributes = [
@@ -65,10 +65,26 @@ app.get('/metadata/:tokenId', async (req, res) => {
             }
         ];
 
-        if (metadata.xUsername) {
+        const socialFields = {
+            xUsername: "X (Twitter)",
+            github: "GitHub",
+            telegram: "Telegram",
+            discord: "Discord"
+        };
+
+        for (const [dbKey, traitType] of Object.entries(socialFields)) {
+            if (metadata[dbKey]) {
+                attributes.push({
+                    trait_type: traitType,
+                    value: metadata[dbKey]
+                });
+            }
+        }
+
+        if (metadata.website) {
             attributes.push({
-                trait_type: "X Username",
-                value: metadata.xUsername
+                trait_type: "Website",
+                value: metadata.website
             });
         }
 
@@ -89,6 +105,8 @@ app.get('/metadata/:tokenId', async (req, res) => {
     }
 });
 
-app.listen(port, () => {
-    console.log(`WLFI NS Metadata API listening on port ${port}`);
+connectToServer().then(() => {
+    app.listen(port, () => {
+        console.log(`WLFI NS Metadata API listening on port ${port}`);
+    });
 });

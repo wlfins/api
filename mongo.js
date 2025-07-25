@@ -1,8 +1,6 @@
-
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const uri = process.env.MONGODB_URI;
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -11,28 +9,24 @@ const client = new MongoClient(uri, {
   }
 });
 
-async function connectDB() {
+let db;
+
+async function connectToServer() {
   try {
-    // Connect the client to the server (optional starting in v4.7)
     await client.connect();
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
-  } finally {
-    // Ensures that the client will close when you finish/error
-    await client.close();
+    db = client.db('wlfins');
+    console.log("Successfully connected to MongoDB!");
+  } catch (err) {
+    console.error("Failed to connect to MongoDB", err);
+    process.exit(1);
   }
 }
 
-let db;
-
-const getDB = async () => {
-    if (db) {
-        return db;
+const getDB = () => {
+    if (!db) {
+        throw new Error("Must connect to database first.");
     }
-    await client.connect();
-    db = client.db('wlfins');
     return db;
 };
 
-module.exports = { getDB, connectDB };
+module.exports = { connectToServer, getDB };

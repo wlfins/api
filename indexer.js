@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { ethers } = require("ethers");
-const { getDB } = require('./mongo');
+const { connectToServer, getDB } = require('./mongo');
 
 // --- Configuration ---
 const RPC_URL = process.env.MAINNET_RPC_URL;
@@ -10,6 +10,7 @@ const WLFIREGISTRY_ADDR = process.env.WLFIREGISTRY_ADDR;
 const DEPLOYMENT_BLOCK = parseInt(process.env.DEPLOYMENT_BLOCK) || 0;
 
 const REGISTRAR_ABI = [
+    "event DomainRegistered(string name, address owner, uint256 expires)",
     "event DomainRenewed(string name, address owner, uint256 expires)"
 ];
 
@@ -26,6 +27,8 @@ const WLFIREGISTRY_ABI = [
 // --- Main Logic ---
 async function main() {
     console.log("Starting indexer...");
+
+    await connectToServer();
 
     console.log("Connecting to provider...");
     const provider = new ethers.JsonRpcProvider(RPC_URL);
@@ -50,13 +53,16 @@ async function main() {
     console.log("Processing historical events...");
     const BLOCK_CHUNK_SIZE = 1000; // Process events in chunks of 1,000 blocks (RPC limit)
     const currentBlock = await provider.getBlockNumber();
-    let processedEventsCount = 0;
+    let processedTransferEvents = 0;
+    let processedRenewalEvents = 0;
+    let processedRegistrationEvents = 0;
 
     for (let i = DEPLOYMENT_BLOCK; i <= currentBlock; i += BLOCK_CHUNK_SIZE) {
         const fromBlock = i;
         const toBlock = Math.min(i + BLOCK_CHUNK_SIZE - 1, currentBlock);
         console.log(`Querying blocks ${fromBlock} to ${toBlock} for events...`);
 
+        // Transfers
         const transferFilter = wlfirRegistry.filters.Transfer();
         const pastTransferEvents = await wlfirRegistry.queryFilter(transferFilter, fromBlock, toBlock);
 
@@ -68,10 +74,74 @@ async function main() {
             const [from, to, tokenId] = event.args;
             console.log(`[HISTORICAL] Found Transfer: ${tokenId} to ${to} at block ${event.blockNumber}`);
             await updateDatabase(tokenId.toString(), { owner: to }, false);
-            processedEventsCount++;
+            processedTransferEvents++;
+        }
+
+        // Registrations
+        const domainRegisteredFilter = registrar.filters.DomainRegistered();
+        const pastRegisteredEvents = await registrar.queryFilter(domainRegisteredFilter, fromBlock, toBlock);
+
+        for (const event of pastRegisteredEvents) {
+            if (!event.args) {
+                console.error("Skipping malformed historical DomainRegistered event: event.args is undefined.", event);
+                continue;
+            }
+            const { name, owner, expires } = event.args;
+            const hexTokenId = ethers.namehash(name);
+            const tokenId = BigInt(hexTokenId).toString();
+            console.log(`[HISTORICAL] Found DomainRegistered: ${name} (Token ID: ${tokenId}) at block ${event.blockNumber}`);
+            await updateDatabase(tokenId, { name: name, owner: owner, expiry: expires.toString() }, false);
+            processedRegistrationEvents++;
+        }
+
+        // Renewals
+        const domainRenewedFilter = registrar.filters.DomainRenewed();
+        const pastRenewedEvents = await registrar.queryFilter(domainRenewedFilter, fromBlock, toBlock);
+
+        for (const event of pastRenewedEvents) {
+            if (!event.args) {
+                console.error("Skipping malformed historical DomainRenewed event: event.args is undefined.", event);
+                continue;
+            }
+            const { name, owner, expires } = event.args;
+            const hexTokenId = ethers.namehash(name);
+            const tokenId = BigInt(hexTokenId).toString();
+            console.log(`[HISTORICAL] Found DomainRenewed: ${name} (Token ID: ${tokenId}) at block ${event.blockNumber}`);
+            await updateDatabase(tokenId, { name: name, expiry: expires.toString() }, false);
+            processedRenewalEvents++;
+        }
+
+        // TextChanged (Metadata)
+        const textChangedFilter = resolver.filters.TextChanged();
+        const pastTextChangedEvents = await resolver.queryFilter(textChangedFilter, fromBlock, toBlock);
+
+        for (const event of pastTextChangedEvents) {
+            if (!event.args) {
+                console.error("Skipping malformed historical TextChanged event: event.args is undefined.", event);
+                continue;
+            }
+            const { node, indexedKey, key, value } = event.args;
+            const tokenId = BigInt(node).toString();
+            const keyMap = {
+                "description": "description",
+                "avatar": "avatar",
+                "url": "website",
+                "x": "xUsername",
+                "com.github": "github",
+                "com.telegram": "telegram",
+                "com.discord": "discord"
+            };
+            const dbKey = keyMap[key];
+            if (dbKey) {
+                console.log(`[HISTORICAL] Found TextChanged for ${key} on token ${tokenId} at block ${event.blockNumber}`);
+                await updateDatabase(tokenId, { [dbKey]: value }, false);
+            }
         }
     }
-    console.log(`Finished processing ${processedEventsCount} historical transfer events.`);
+    console.log(`Finished processing ${processedTransferEvents} historical transfer events.`);
+    console.log(`Finished processing ${processedRegistrationEvents} historical registration events.`);
+    console.log(`Finished processing ${processedRenewalEvents} historical renewal events.`);
+
 
     // --- Live Event Listeners ---
     console.log("Attaching live event listeners...");
@@ -90,12 +160,23 @@ async function main() {
         }
     });
 
+    registrar.on("DomainRegistered", async (name, owner, expires) => {
+        try {
+            console.log(`[LIVE] Domain Registered: ${name}`);
+            const hexTokenId = ethers.namehash(name);
+            const tokenId = BigInt(hexTokenId).toString();
+            await updateDatabase(tokenId, { name: name, owner: owner, expiry: expires.toString() });
+        } catch (error) {
+            console.error("Error processing live DomainRegistered event:", error);
+        }
+    });
+
     registrar.on("DomainRenewed", async (name, owner, expires) => {
         try {
             console.log(`[LIVE] Domain Renewed: ${name}`);
             const hexTokenId = ethers.namehash(name);
             const tokenId = BigInt(hexTokenId).toString();
-            await updateDatabase(tokenId, { expiry: expires.toString() });
+            await updateDatabase(tokenId, { name: name, expiry: expires.toString() });
         } catch (error) {
             console.error("Error processing live DomainRenewed event:", error);
         }
@@ -108,7 +189,11 @@ async function main() {
             const keyMap = {
                 "description": "description",
                 "avatar": "avatar",
-                "x": "xUsername"
+                "url": "website",
+                "x": "xUsername",
+                "com.github": "github",
+                "com.telegram": "telegram",
+                "com.discord": "discord"
             };
             const dbKey = keyMap[key];
             if (dbKey) {
@@ -125,7 +210,7 @@ async function main() {
 // --- Database Helper ---
 async function updateDatabase(tokenId, newData, log = true) {
     try {
-        const db = await getDB();
+        const db = getDB();
         const result = await db.collection('domains').updateOne(
             { tokenId: tokenId },
             { $set: newData },
