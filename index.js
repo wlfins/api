@@ -10,14 +10,7 @@ const { connectToServer, getDB } = require('./mongo');
 const app = express();
 const port = process.env.PORT || 3001;
 
-let textToSVG;
-TextToSVG.load('https://fonts.gstatic.com/s/notosans/v27/o-0IIpQlx3QUlC5A4PNr5TRA.woff2', (err, tts) => {
-  if (err) {
-    console.error(err);
-    process.exit(1);
-  }
-  textToSVG = tts;
-});
+const textToSVG = TextToSVG.loadSync('./fonts/NotoSans-Regular.woff2');
 
 app.use(cors());
 
