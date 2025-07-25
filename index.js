@@ -4,10 +4,20 @@ const express = require('express');
 const cors = require('cors');
 const sharp = require('sharp');
 const fetch = require('node-fetch');
+const TextToSVG = require('text-to-svg');
 const { connectToServer, getDB } = require('./mongo');
 
 const app = express();
 const port = process.env.PORT || 3001;
+
+let textToSVG;
+TextToSVG.load('https://fonts.gstatic.com/s/notosans/v27/o-0IIpQlx3QUlC5A4PNr5TRA.woff2', (err, tts) => {
+  if (err) {
+    console.error(err);
+    process.exit(1);
+  }
+  textToSVG = tts;
+});
 
 app.use(cors());
 
@@ -25,21 +35,15 @@ app.get('/image/:tokenId', async (req, res) => {
         const domainName = metadata.name + ".wlfi";
         const fontSize = Math.max(30, 90 - domainName.length * 3);
 
-        const fontBuffer = await fetch('https://fonts.gstatic.com/s/notosans/v27/o-0IIpQlx3QUlC5A4PNr5TRA.woff2').then(res => res.arrayBuffer());
-        const fontBase64 = Buffer.from(fontBuffer).toString('base64');
+        const attributes = {fill: '#E6C278'};
+        const options = {x: 250, y: 450, fontSize: fontSize, anchor: 'center middle', attributes: attributes};
+
+        const path = textToSVG.getD(domainName, options);
 
         const svg = `
             <svg width="500" height="500" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
-                <style>
-                    @font-face {
-                        font-family: 'Noto Sans';
-                        src: url(data:font/woff2;base64,${fontBase64}) format('woff2');
-                    }
-                </style>
                 <rect width="100%" height="100%" fill="#1A1A1A" />
-                <text x="50%" y="90%" dominant-baseline="middle" text-anchor="middle" fill="#E6C278" font-size="${fontSize}px" font-family="'Noto Sans', Arial, sans-serif">
-                    ${domainName}
-                </text>
+                <path d="${path}"/>
             </svg>
         `;
 
@@ -93,19 +97,15 @@ app.get('/composite-image/:tokenId', async (req, res) => {
         // 2. Generate the SVG overlay
         const domainName = metadata.name + ".wlfi";
         const fontSize = Math.max(30, 90 - domainName.length * 3);
-                const fontBuffer = await fetch('https://fonts.gstatic.com/s/notosans/v27/o-0IIpQlx3QUlC5A4PNr5TRA.woff2').then(res => res.arrayBuffer());
-        const fontBase64 = Buffer.from(fontBuffer).toString('base64');
+
+        const attributes = {fill: '#E6C278'};
+        const options = {x: 250, y: 450, fontSize: fontSize, anchor: 'center middle', attributes: attributes};
+
+        const path = textToSVG.getD(domainName, options);
+
         const svgOverlay = `
             <svg width="500" height="500" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
-                <style>
-                    @font-face {
-                        font-family: 'Noto Sans';
-                        src: url(data:font/woff2;base64,${fontBase64}) format('woff2');
-                    }
-                </style>
-                <text x="50%" y="90%" dominant-baseline="middle" text-anchor="middle" fill="#E6C278" font-size="${fontSize}px" font-family="'Noto Sans', Arial, sans-serif">
-                    ${domainName}
-                </text>
+                <path d="${path}"/>
             </svg>
         `;
         const svgBuffer = Buffer.from(svgOverlay);
