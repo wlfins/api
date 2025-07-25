@@ -37,7 +37,7 @@ app.get('/image/:tokenId', async (req, res) => {
         const svg = `
             <svg width="500" height="500" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
                 <rect width="100%" height="100%" fill="#1A1A1A" />
-                <path d="${path}"/>
+                <path fill="#FFD700" d="${path}"/>
             </svg>
         `;
 
@@ -99,7 +99,7 @@ app.get('/composite-image/:tokenId', async (req, res) => {
 
         const svgOverlay = `
             <svg width="500" height="500" viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
-                <path d="${path}"/>
+                <path fill="#FFD700" d="${path}"/>
             </svg>
         `;
         const svgBuffer = Buffer.from(svgOverlay);
