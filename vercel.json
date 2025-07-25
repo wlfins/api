@@ -18,7 +18,7 @@
   ],
   "crons": [
     {
-      "path": "/indexer",
+      "path": "indexer.js",
       "schedule": "* * * * *"
     }
   ]
