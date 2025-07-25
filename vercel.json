@@ -4,12 +4,22 @@
     {
       "src": "index.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "indexer.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
       "dest": "index.js"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/indexer",
+      "schedule": "* * * * *"
     }
   ]
 }
